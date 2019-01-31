@@ -10,6 +10,7 @@
 
     <modules>
         <module>broker</module>
+        <module>router</module>
     </modules>
 
     <build>
