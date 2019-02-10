@@ -1,4 +1,4 @@
-package com.wethinkcode.router;
+package test;
 
 public class FixMessage {
     String[] subStrings;

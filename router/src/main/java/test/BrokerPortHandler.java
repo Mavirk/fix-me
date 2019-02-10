@@ -1,4 +1,4 @@
-package com.wethinkcode.router;
+package test;
 
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -12,18 +12,18 @@ public class BrokerPortHandler implements Runnable{
         this.serverSocket = serverSocket;
     }
     public void run(){
-        while(running){
-            try (Socket clientSocket = serverSocket.accept()) {
-                socket = clientSocket;
-                checkSocket(socket);
-                System.out.println("Broker Connected...");
-                Runnable routerWorker = new RouterWorkerThread(socket);
-                new Thread(routerWorker).start();
-            } catch (Exception e) {
-                e.printStackTrace();
-                break;
-            }
-        }
+//        while(running){
+//            try (Socket clientSocket = serverSocket.accept()) {
+//                socket = clientSocket;
+//                checkSocket(socket);
+//                System.out.println("Broker Connected...");
+//                Runnable routerWorker = new RouterWorkerThread(socket);
+//                new Thread(routerWorker).start();
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//                break;
+//            }
+//        }
     }
     public void checkSocket(Socket socket){
         if (socket.isConnected()){

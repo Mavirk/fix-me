@@ -1,4 +1,6 @@
-package com.wethinkcode.router;
+package test;
+
+import test.FixMessage;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

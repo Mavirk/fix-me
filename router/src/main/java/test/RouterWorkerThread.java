@@ -1,14 +1,17 @@
-package com.wethinkcode.router;
+package test;
+
+import com.wethinkcode.router.Router;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
+
 public class RouterWorkerThread implements Runnable{
     private Socket socket;
 
-    public RouterWorkerThread(Socket socket){
+    public RouterWorkerThread(Router router, Socket socket){
         if (!socket.isClosed())this.socket = socket;
         else System.out.println("socket is closed");
 
