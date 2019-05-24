@@ -34,7 +34,7 @@ public class Router {
     private long uniqueId = 0l;
     private boolean running = true;
 
-    public void Router() throws IOException {
+    public Router() throws IOException {
         new Thread(echoWorker).start();
         setupServers();
         running = true;

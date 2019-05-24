@@ -2,6 +2,7 @@ package com.wethinkcode.broker;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -12,8 +13,7 @@ public class Broker {
     private InetSocketAddress serverAddress;
     private ServerSocketChannel server;
     private SocketChannel socketChannel;
-    private ByteBuffer readBuffer = ByteBuffer.allocate(8192);
-    private ByteBuffer writeBuffer = ByteBuffer.allocate(8192);
+
 
     public Broker(String serverName, int port) throws Exception{
         running = true;
@@ -24,6 +24,7 @@ public class Broker {
         while (running){
 
         }
+        disconnectServer();
     }
 
     protected void connectServer(String serverName, int port) throws IOException {
@@ -32,28 +33,22 @@ public class Broker {
         log("Connecting to server: " + serverName +"on port :" + port);
     }
 
-    protected void disconnectServer(){}
-
-    protected String read()throws IOException{
-        String message = "test";
-        int readNum = 0;
-        readNum = socketChannel.read(readBuffer);
-
-        if (readNum == -1){
-            log("ERROR get message failed");
-            shutdown();
+    protected void disconnectServer(){
+        try {
+            socketChannel.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-
-        return message;
     }
 
-    protected void write(String message){
+//    protected String read()throws IOException{
+//
+//    }
+//
+//    protected void write(String message){
+//
+//    }
 
-    }
-
-    protected void log(String logMessage){
-        System.out.println(logMessage);
-    }
 
     protected String getUserInput(String question){
         Scanner consoleInput = new Scanner(System.in);
@@ -64,8 +59,8 @@ public class Broker {
     private void shutdown() {
         System.exit(0);
     }
-//  protected void buy (){}
 
-//   protected void sell(){}
-
+    protected void log(String logMessage){
+        System.out.println(logMessage);
+    }
 }
