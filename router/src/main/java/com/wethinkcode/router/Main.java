@@ -5,9 +5,9 @@ public class Main {
         int[] ports = {5000, 5001};
         String ip = "localhost";
         try {
-            Server server = new Server(ip, ports);
-            server.runServer();
-            server.stopServer();
+            Router server = new Router();
+            server.run();
+//            server.stop();
         }catch(Exception e){
             System.out.println("ROUTER ERROR");
             e.printStackTrace();

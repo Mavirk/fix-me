@@ -1,5 +1,7 @@
 package com.wethinkcode.router;
 
+import com.sun.javafx.collections.MappingChange;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -10,7 +12,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Router {
-    private ArrayList<SocketChannel> clients = new ArrayList<>();
+    private Map <String ,SelectionKey> clientMap = new HashMap<>();
+    private Map <String,SelectionKey> brokerMap = new HashMap<>();
+    private Map <String,SocketChannel> marketMap = new HashMap<>();
     private ExecutorService readThreadPool =  Executors.newFixedThreadPool(10);
     private ExecutorService writeThreadPool =  Executors.newFixedThreadPool(10);
     private EchoWorker echoWorker;
@@ -28,7 +32,7 @@ public class Router {
     private ServerSocketChannel brokerChannel;
     private SelectionKey marketKey;
     private SelectionKey brokerKey;
-    private ByteBuffer readBuffer = ByteBuffer.allocate(8192);
+
     private ByteBuffer writeBuffer = ByteBuffer.allocate(8192);
 
     private long uniqueId = 0l;
@@ -58,26 +62,44 @@ public class Router {
                     }
                     this.changeRequests.clear();
                 }
-
-                selector.select();
-                Set<SelectionKey> clientKeys = selector.selectedKeys();
-                Iterator<SelectionKey> keyIterator = clientKeys.iterator();
+                System.out.println("Number of selected channels : " +  selector.select());
+                Set<SelectionKey> selectedKeys = selector.selectedKeys();
+                Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
                 while(keyIterator.hasNext()) {
                     SelectionKey currKey = keyIterator.next();
-
+                    if (currKey.channel() instanceof ServerSocketChannel){
+                        log("Key is of instance ServerSocket");
+                    }
+                    if (currKey.channel() instanceof SocketChannel){
+                        log("Key is of instance Socket");
+                    }
                     if (currKey.isValid()) {
-                        if (currKey.isAcceptable()) registerClient(currKey);
-                        else if (currKey.isReadable()) read(currKey);
-                        else if (currKey.isWritable()) write(currKey);
+                        if (currKey.isAcceptable()) {
+                            if (currKey.equals(brokerKey))
+                                registerBroker(currKey);
+                            if (currKey.equals(marketKey))
+                                registerMarket(currKey);
+                        } else if (currKey.isReadable()){
+//                            if (currKey.equals(brokerKey))
+//                                readBroker(currKey);
+//                            if (currKey.equals(marketKey))
+//                                readMarket();
+                            read(currKey);
+                        } else if (currKey.isWritable()) {
+//                            if (currKey.equals(brokerKey))
+//                                writeBroker(currKey);
+//                            if (currKey.equals(marketKey))
+//                                writeMarket();
+                            write(currKey);
+                        }
                     }
                     else {
                         log("key not valid");
                         shutdown(-1);
                     }
+                    keyIterator.remove();
                 }
-                shutdown(1);
-
             }catch (Exception e){
                 e.printStackTrace();
                 shutdown(-1);
@@ -94,23 +116,27 @@ public class Router {
         System.out.println(logMessage);
     }
 
-    private void registerChannel (Selector selector, SelectableChannel channel, int ops) throws IOException {
-        if (channel == null) return;
 
-        // Set the new channel nonblocking
-        channel.configureBlocking (false);
-
-        // Register it with the selector
-        channel.register (selector, ops);
-    }
-
-    private void registerClient(SelectionKey currKey) throws IOException{
+    private void registerMarket(SelectionKey currKey) throws IOException{
         SocketChannel client;
         ServerSocketChannel server = (ServerSocketChannel) currKey.channel();
         client = server.accept();
-        clients.add(client);
-        registerChannel(selector, client, SelectionKey.OP_READ);
-        log("client registered");
+        log("market registered");
+    }
+
+    private void registerBroker(SelectionKey currKey) throws IOException{
+        String id = String.valueOf(getUniqueId());
+        log("broker Id :" + id);
+        SocketChannel client;
+        ServerSocketChannel server = (ServerSocketChannel) currKey.channel();
+        client = server.accept();
+        client.configureBlocking(false);
+        SelectionKey key = client.register(selector, SelectionKey.OP_READ);
+
+        brokerMap.put(id, key);
+        clientMap.put(id, key);
+        writeBuffer(client, id);
+        log("broker registered");
     }
 
     private void setupServers() throws IOException{
@@ -125,26 +151,11 @@ public class Router {
         brokerChannel.configureBlocking(false);
         marketKey = marketChannel.register(selector, SelectionKey.OP_ACCEPT);
         brokerKey = brokerChannel.register(selector, SelectionKey.OP_ACCEPT);
+//        brokerSocket.setReuseAddress(true);
         log("severs setup");
     }
 
     private void read(SelectionKey key) throws IOException{
-        int readNum = 0;
-        SocketChannel client = (SocketChannel) key.channel();
-        readBuffer.clear();
-        try{
-            readNum = client.read(readBuffer);
-        }catch (IOException e){
-            client.close();
-            key.cancel();
-            return;
-        }
-        if (readNum == -1){
-            client.close();
-            key.cancel();
-            return;
-        }
-        this.echoWorker.processData(this, client, this.readBuffer.array(), readNum);
     }
 
     private void write(SelectionKey key)throws IOException{
@@ -194,6 +205,39 @@ public class Router {
         this.selector.wakeup();
     }
     private void shutdown(int exitCode){
+        Iterator iterator = clientMap.entrySet().iterator();
+        while(iterator.hasNext()){
+            Map.Entry<String, SelectionKey> client  = (Map.Entry)iterator.next();
+            SelectionKey key  = client.getValue();
+            SocketChannel channel = (SocketChannel) key.channel();
+            try {
+                channel.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        try {
+            brokerChannel.close();
+            marketChannel.close();
+        }catch (IOException e){
+            e.printStackTrace();
+        }
         System.exit(exitCode);
+    }
+
+    protected String readBuffer(SocketChannel client)throws IOException{
+        ByteBuffer buffer = ByteBuffer.allocate(256);
+        String response;
+        client.read(buffer);
+        buffer.clear();
+        response = new String(buffer.array()).trim();
+        return response;
+    }
+
+    protected void writeBuffer(SocketChannel client, String message) throws IOException {
+
+        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
+        client.write(buffer);
+        buffer.clear();
     }
 }

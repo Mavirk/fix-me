@@ -3,8 +3,8 @@ package com.wethinkcode.broker;
 public class Main {
     public static void main(String args[]) {
         try {
-            Client client = new Client("localhost", 5001);
-            client.runClient();
+            Broker broker = new Broker("localhost", 5000);
+            broker.run();
         }catch(Exception e){
             System.out.println("BROKER ERROR :");
             e.printStackTrace();

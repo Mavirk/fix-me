@@ -26,6 +26,7 @@ public class EchoWorker implements Runnable{
                     try {
                         queue.wait();
                     } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
                 }
                 dataEvent = (ServerDataEvent) queue.remove(0);
