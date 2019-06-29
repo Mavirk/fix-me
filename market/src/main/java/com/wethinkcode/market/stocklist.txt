@@ -1,0 +1,4 @@
+apple,100,5
+banna,150,7
+pear,50,10
+grape,400,2

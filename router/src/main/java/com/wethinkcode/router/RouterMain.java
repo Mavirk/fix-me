@@ -1,11 +1,11 @@
 package com.wethinkcode.router;
 
-public class Main {
+public class RouterMain {
     public static void main(String args[]) {
         int[] ports = {5000, 5001};
         String ip = "localhost";
         try {
-            Router server = new Router();
+            Router server = new Router(ip, ports[1], ports[0]);
             server.run();
 //            server.stop();
         }catch(Exception e){

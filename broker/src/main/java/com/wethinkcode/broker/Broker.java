@@ -1,37 +1,31 @@
 package com.wethinkcode.broker;
 
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
-import org.omg.CosNaming.NamingContextExtPackage.StringNameHelper;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Scanner;
 
 public class Broker {
     private boolean running = false;
     private InetSocketAddress serverAddress;
-    private ServerSocketChannel serverChannel;
     private SocketChannel clientChannel;
-    private ByteBuffer buffer;
-    private String id;
+    private int id;
 
 
     public Broker(String serverName, int port) throws Exception{
         running = true;
-        id = connectServer(serverName, port);
+        id = Integer.parseInt(connectServer(serverName, port));
     }
 
     protected void run(){
         String message ;
         while (running){
-            message = getUserInput("Please Input Message");
+            printBuyOptions();
+            message = getUserInput();
             sendMessage(message);
             System.out.println("Message Sent");
-            break;
         }
         disconnectServer();
     }
@@ -40,8 +34,9 @@ public class Broker {
         String response;
         serverAddress = new InetSocketAddress(serverName, port);
         clientChannel = SocketChannel.open(serverAddress);
-        buffer = ByteBuffer.allocate(256);
+        // buffer = ByteBuffer.allocate(256);
         response = readBuffer();
+
         log("Connecting to server: " + serverName +"on port :" + port  + "My ID is : " + response);
         return response;
     }
@@ -49,7 +44,7 @@ public class Broker {
     protected void disconnectServer(){
         try {
             clientChannel.close();
-            buffer = null;
+            // buffer = null;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -58,6 +53,7 @@ public class Broker {
     private String sendMessage(String message){
         String response = null;
         try {
+            message = "{" + message + "}";
             writeBuffer(message);
             response = readBuffer();
             System.out.println("Reponse : " + response);
@@ -68,24 +64,46 @@ public class Broker {
     }
 
     private String readBuffer()throws IOException{
-        String response;
+        ByteBuffer buffer = ByteBuffer.allocate(512);
+        String response = "";
+        String temp = "";
         clientChannel.read(buffer);
-        response = new String(buffer.array()).trim();
+        temp = new String(buffer.array()).trim();
+        System.out.println("This is before cleaning the Response" + temp);
+        String cleanedMessage = temp.substring(1, temp.length()-1);
+        response = cleanedMessage;
         buffer.clear();
         return response;
     }
 
     private void writeBuffer(String message) throws IOException {
-        buffer = ByteBuffer.wrap(message.getBytes());
+        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
         clientChannel.write(buffer);
-        buffer.clear();
+        buffer.flip();
     }
-
-
-    protected String getUserInput(String question){
+    
+    protected String getUserInput(){
+        String[] questions =  {
+            "Instrument?",
+            "Quantity?",
+            "Price?",
+            "Market?",
+            "Buy/Sell?"
+        };
         Scanner consoleInput = new Scanner(System.in);
-        log(question);
-        return consoleInput.nextLine();
+        String finalString = "";
+
+        finalString = finalString + id;
+        for(int i = 0; i < 5; i++){
+            finalString = finalString + ",";
+            log(questions[i]);
+            consoleInput.hasNextLine();
+            String part = consoleInput.nextLine();
+            finalString = finalString + part;
+        }
+        consoleInput.close();
+        log("FINAL STRING : " + finalString);
+        return finalString;
     }
 
     private void shutdown() {
@@ -94,5 +112,11 @@ public class Broker {
 
     protected void log(String logMessage){
         System.out.println(logMessage);
+    }
+
+    private void printBuyOptions(){
+        log("apple");
+        log("banana");
+        log("grape");
     }
 }

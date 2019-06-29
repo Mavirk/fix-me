@@ -1,6 +1,6 @@
 package com.wethinkcode.broker;
 
-public class Main {
+public class BrokerMain {
     public static void main(String args[]) {
         try {
             Broker broker = new Broker("localhost", 5000);

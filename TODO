@@ -1,0 +1,14 @@
+setup read funtion to cross check the destination of a message and reply with an error message if the destination does not exist
+setup market with intruments and prices 
+setup market read and write
+send message to market and have it echo to broker                                                                                                                                                                                                               
+
+setup market buy function
+
+create market replies
+setup merket error function if the input makes no sense
+setup merket error function if price requested is lower than priuce given
+setup merket error function if intrument is not part of this market
+setup merket error function if ther is not enough stock to fullfill the request
+
+on Server multi thread the message reading and writing

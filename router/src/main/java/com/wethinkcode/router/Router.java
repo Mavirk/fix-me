@@ -1,29 +1,29 @@
 package com.wethinkcode.router;
 
-import com.sun.javafx.collections.MappingChange;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
-import java.util.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Router {
-    private Map <String ,SelectionKey> clientMap = new HashMap<>();
-    private Map <String,SelectionKey> brokerMap = new HashMap<>();
-    private Map <String,SocketChannel> marketMap = new HashMap<>();
-    private ExecutorService readThreadPool =  Executors.newFixedThreadPool(10);
-    private ExecutorService writeThreadPool =  Executors.newFixedThreadPool(10);
-    private EchoWorker echoWorker;
-
-    // A list of ChangeRequest instances
-    private List changeRequests = new LinkedList();
-
-    // Maps a SocketChannel to a list of ByteBuffer instances
-    private Map pendingData = new HashMap();
+    private Map<String, SelectionKey> clientMap = new HashMap<>();
+    // private Map <String,SelectionKey> brokerMap = new HashMap<>();
+    // private Map <String,SelectionKey> marketMap = new HashMap<>();
+    private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(1);
 
     private Selector selector;
     private ServerSocket marketSocket;
@@ -33,179 +33,105 @@ public class Router {
     private SelectionKey marketKey;
     private SelectionKey brokerKey;
 
-    private ByteBuffer writeBuffer = ByteBuffer.allocate(8192);
+    // private ByteBuffer writeBuffer = ByteBuffer.allocate(8192);
 
     private long uniqueId = 0l;
     private boolean running = true;
 
-    public Router() throws IOException {
-        new Thread(echoWorker).start();
-        setupServers();
+    public Router(String serverAddress, int marketPort, int brokerPort) throws IOException {
+        setupServers(serverAddress, marketPort, brokerPort); // market is port 5000... broker is port 5001
         running = true;
     }
 
-
-    protected void run() throws IOException{
+    protected void run() throws IOException {
         log("run method");
-        while (running){
+        while (running) {
             try {
-                // Process any pending changes
-                synchronized(this.changeRequests) {
-                    Iterator changes = this.changeRequests.iterator();
-                    while (changes.hasNext()) {
-                        ChangeRequest change = (ChangeRequest) changes.next();
-                        switch(change.type) {
-                            case ChangeRequest.CHANGEOPS:
-                                SelectionKey key = change.socket.keyFor(this.selector);
-                                key.interestOps(change.ops);
-                        }
-                    }
-                    this.changeRequests.clear();
-                }
-                System.out.println("Number of selected channels : " +  selector.select());
+                System.out.println("Number of selected channels : " + selector.select(3000));
+                System.out.println("Number of total channels : " + selector.keys().size());
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();
                 Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
-                while(keyIterator.hasNext()) {
+                while (keyIterator.hasNext()) {
                     SelectionKey currKey = keyIterator.next();
-                    if (currKey.channel() instanceof ServerSocketChannel){
-                        log("Key is of instance ServerSocket");
-                    }
-                    if (currKey.channel() instanceof SocketChannel){
-                        log("Key is of instance Socket");
-                    }
+                    keyIterator.remove();
                     if (currKey.isValid()) {
                         if (currKey.isAcceptable()) {
-                            if (currKey.equals(brokerKey))
-                                registerBroker(currKey);
-                            if (currKey.equals(marketKey))
-                                registerMarket(currKey);
-                        } else if (currKey.isReadable()){
-//                            if (currKey.equals(brokerKey))
-//                                readBroker(currKey);
-//                            if (currKey.equals(marketKey))
-//                                readMarket();
-                            read(currKey);
-                        } else if (currKey.isWritable()) {
-//                            if (currKey.equals(brokerKey))
-//                                writeBroker(currKey);
-//                            if (currKey.equals(marketKey))
-//                                writeMarket();
-                            write(currKey);
+                            registerClient(currKey);
+                        } else if (currKey.isReadable()) {
+                            routeMessage(currKey);
                         }
-                    }
-                    else {
+                    } else {
                         log("key not valid");
                         shutdown(-1);
                     }
-                    keyIterator.remove();
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
+                
                 e.printStackTrace();
+                // running = false;
                 shutdown(-1);
             }
         }
-
     }
 
     private long getUniqueId() {
         return uniqueId = uniqueId + 1;
     }
 
-    private void log(String logMessage){
+    private void log(String logMessage) {
         System.out.println(logMessage);
     }
 
-
-    private void registerMarket(SelectionKey currKey) throws IOException{
-        SocketChannel client;
-        ServerSocketChannel server = (ServerSocketChannel) currKey.channel();
-        client = server.accept();
-        log("market registered");
-    }
-
-    private void registerBroker(SelectionKey currKey) throws IOException{
+    private void registerClient(SelectionKey currKey) throws IOException {
         String id = String.valueOf(getUniqueId());
-        log("broker Id :" + id);
+        log("client :" + id);
         SocketChannel client;
         ServerSocketChannel server = (ServerSocketChannel) currKey.channel();
         client = server.accept();
         client.configureBlocking(false);
-        SelectionKey key = client.register(selector, SelectionKey.OP_READ);
+        SelectionKey key = client.register(selector, SelectionKey.OP_READ, id);
 
-        brokerMap.put(id, key);
         clientMap.put(id, key);
         writeBuffer(client, id);
-        log("broker registered");
+        log("client registered");
     }
 
-    private void setupServers() throws IOException{
+    private void setupServers(String serverAddress, int marketPort, int brokerPort) throws IOException {
         selector = Selector.open();
         marketChannel = ServerSocketChannel.open();
         brokerChannel = ServerSocketChannel.open();
-        marketSocket = marketChannel.socket();
-        brokerSocket = brokerChannel.socket();
-        marketSocket.bind(new InetSocketAddress("localhost",5001));
-        brokerSocket.bind(new InetSocketAddress("localhost",5000));
+        marketChannel = marketChannel.bind(new InetSocketAddress(serverAddress, marketPort));
+        brokerChannel = brokerChannel.bind(new InetSocketAddress(serverAddress, brokerPort));
         marketChannel.configureBlocking(false);
         brokerChannel.configureBlocking(false);
-        marketKey = marketChannel.register(selector, SelectionKey.OP_ACCEPT);
-        brokerKey = brokerChannel.register(selector, SelectionKey.OP_ACCEPT);
-//        brokerSocket.setReuseAddress(true);
+        marketKey = marketChannel.register(selector, SelectionKey.OP_ACCEPT, "5000");
+        brokerKey = brokerChannel.register(selector, SelectionKey.OP_ACCEPT, "5001");
         log("severs setup");
     }
 
-    private void read(SelectionKey key) throws IOException{
+    private void routeMessage(SelectionKey key) throws IOException {
+        log("routeMessage()");
+        Runnable worker = new MessageHandler(clientMap, key);
+        messageHandlerPool.execute(worker);
     }
 
-    private void write(SelectionKey key)throws IOException{
-        log("write() function called");
-        SocketChannel socketChannel = (SocketChannel) key.channel();
-
-        synchronized (this.pendingData) {
-            List queue = (List) this.pendingData.get(socketChannel);
-
-            // Write until there's not more data ...
-            while (!queue.isEmpty()) {
-                ByteBuffer buf = (ByteBuffer) queue.get(0);
-                socketChannel.write(buf);
-                if (buf.remaining() > 0) {
-                    // ... or the socket's buffer fills up
-                    break;
-                }
-                queue.remove(0);
-            }
-
-            if (queue.isEmpty()) {
-                // We wrote away all data, so we're no longer interested
-                // in writing on this socket. Switch back to waiting for
-                // data.
-                key.interestOps(SelectionKey.OP_READ);
-            }
-        }
+    protected void writeBuffer(SocketChannel client, String message) throws IOException {
+        message = "{" + message + "}";
+        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
+        client.write(buffer);
+        buffer.clear();
     }
 
-    public void send(SocketChannel socket, byte[] data) {
-        synchronized (this.changeRequests) {
-            // Indicate we want the interest ops set changed
-            this.changeRequests.add(new ChangeRequest(socket, ChangeRequest.CHANGEOPS, SelectionKey.OP_WRITE));
-
-            // And queue the data we want written
-            synchronized (this.pendingData) {
-                List queue = (List) this.pendingData.get(socket);
-                if (queue == null) {
-                    queue = new ArrayList();
-                    this.pendingData.put(socket, queue);
-                }
-                queue.add(ByteBuffer.wrap(data));
-            }
-        }
-
-        // Finally, wake up our selecting thread so it can make the required changes
-        this.selector.wakeup();
-    }
-    private void shutdown(int exitCode){
+    private void shutdown(int exitCode) {
         Iterator iterator = clientMap.entrySet().iterator();
+        messageHandlerPool.shutdown();
+        try {
+            messageHandlerPool.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
         while(iterator.hasNext()){
             Map.Entry<String, SelectionKey> client  = (Map.Entry)iterator.next();
             SelectionKey key  = client.getValue();
@@ -225,19 +151,102 @@ public class Router {
         System.exit(exitCode);
     }
 
-    protected String readBuffer(SocketChannel client)throws IOException{
-        ByteBuffer buffer = ByteBuffer.allocate(256);
-        String response;
-        client.read(buffer);
-        buffer.clear();
-        response = new String(buffer.array()).trim();
-        return response;
-    }
-
-    protected void writeBuffer(SocketChannel client, String message) throws IOException {
-
-        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
-        client.write(buffer);
-        buffer.clear();
+    private void sendError(SelectionKey key, int errorCode){
+        try {
+            switch(errorCode){
+                case 100:
+                    writeBuffer((SocketChannel) key.channel(), "Invalid Market Request -- market does not exist.");
+                    break;
+                }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
+    // private void routeMessage(SelectionKey key) throws IOException{
+    //     Runnable worker = new MessageHandler(clientMap, key);
+    //     messageHandlerPool.execute(worker);
+
+    //     // String brokerMessage = readBuffer((SocketChannel)key.channel());
+    //     // if (brokerMessage.charAt(0) == '{' && brokerMessage.endsWith("}")){
+    //     //     log("this is a complete message");
+    //     //     String cleanedMessage = brokerMessage.substring(1, brokerMessage.length()-1);
+    //     //     String[] splitMessage = cleanedMessage.split(",");
+    //     //     if(clientMap.containsKey(splitMessage[4])){
+    //     //         SelectionKey destination = clientMap.get(splitMessage[4]);
+    //     //     }else {
+    //     //         log("Invalid destination");
+    //     //         sendError(key, 100);
+    //     //     }
+    //     // }else{
+    //     //     log("inccomplete message");
+    //     //     System.exit(0);
+    //     // }
+    //     // log(brokerMessage);
+    // }
+
+        // synchronized (this.pendingData) {
+        //     List queue = (List) this.pendingData.get(socketChannel);
+
+        //     // Write until there's not more data ...
+        //     while (!queue.isEmpty()) {
+        //         ByteBuffer buf = (ByteBuffer) queue.get(0);
+        //         socketChannel.write(buf);
+        //         if (buf.remaining() > 0) {
+        //             // ... or the socket's buffer fills up
+        //             break;
+        //         }
+        //         queue.remove(0);
+        //     }
+
+        //     if (queue.isEmpty()) {
+        //         // We wrote away all data, so we're no longer interested
+        //         // in writing on this socket. Switch back to waiting for
+        //         // data.
+        //         key.interestOps(SelectionKey.OP_READ);
+        //     }
+        // }
+        // Process any pending changes
+        // synchronized(this.changeRequests) {
+        //     Iterator changes = this.changeRequests.iterator();
+        //     while (changes.hasNext()) {
+        //         ChangeRequest change = (ChangeRequest) changes.next();
+        //         switch(change.type) {
+        //             case ChangeRequest.CHANGEOPS:
+        //                 SelectionKey key = change.socket.keyFor(this.selector);
+        //                 key.interestOps(change.ops);
+        //         }
+        //     }
+        //     this.changeRequests.clear();
+        // }
+
+    // protected String readBuffer(SocketChannel client)throws IOException{
+    //     ByteBuffer buffer = ByteBuffer.allocate(512);
+    //     String response = "";
+    //     String temp = "";
+    //     client.read(buffer);
+    //     temp = new String(buffer.array()).trim();
+    //     response = temp;
+    //     buffer.clear();
+    //     return response;
+    // }
+
+    // public void send(SocketChannel socket, byte[] data) {
+    //     synchronized (this.changeRequests) {
+    //         // Indicate we want the interest ops set changed
+    //         this.changeRequests.add(new ChangeRequest(socket, ChangeRequest.CHANGEOPS, SelectionKey.OP_WRITE));
+
+    //         // And queue the data we want written
+    //         synchronized (this.pendingData) {
+    //             List queue = (List) this.pendingData.get(socket);
+    //             if (queue == null) {
+    //                 queue = new ArrayList();
+    //                 this.pendingData.put(socket, queue);
+    //             }
+    //             queue.add(ByteBuffer.wrap(data));
+    //         }
+    //     }
+
+    //     // Finally, wake up our selecting thread so it can make the required changes
+    //     this.selector.wakeup();
+    // }

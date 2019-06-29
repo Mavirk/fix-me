@@ -19,7 +19,8 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.wethinkcode.broker.Main</mainClass>
+                        <addClasspath>true</addClasspath>
+                            <mainClass>com.wethinkcode.broker.BrokerMain</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
