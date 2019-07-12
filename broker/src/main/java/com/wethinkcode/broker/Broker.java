@@ -12,7 +12,7 @@ public class Broker {
     private InetSocketAddress serverAddress;
     private SocketChannel clientChannel;
     private int id;
-
+    private Scanner consoleInput = new Scanner(System.in);
 
     public Broker(String serverName, int port) throws Exception{
         running = true;
@@ -24,8 +24,9 @@ public class Broker {
         while (running){
             printBuyOptions();
             message = getUserInput();
+//            message = testInput(); // THIS LINE IS FOR TESTING
             sendMessage(message);
-            System.out.println("Message Sent");
+
         }
         disconnectServer();
     }
@@ -51,12 +52,14 @@ public class Broker {
     }
 
     private String sendMessage(String message){
+        log("----------------------");
+        log("Request : " + message);
         String response = null;
         try {
             message = "{" + message + "}";
             writeBuffer(message);
+//            log("Request Sent.");
             response = readBuffer();
-            System.out.println("Reponse : " + response);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -69,10 +72,10 @@ public class Broker {
         String temp = "";
         clientChannel.read(buffer);
         temp = new String(buffer.array()).trim();
-        System.out.println("This is before cleaning the Response" + temp);
         String cleanedMessage = temp.substring(1, temp.length()-1);
         response = cleanedMessage;
         buffer.clear();
+        log("Reponse : " + response);
         return response;
     }
 
@@ -81,40 +84,50 @@ public class Broker {
         clientChannel.write(buffer);
         buffer.flip();
     }
-    
-    protected String getUserInput(){
+
+    private String testInput(){
+        log("Press ENTER to send test message");
+        consoleInput.nextLine();
+        return "2,apple,2,2,1,Buy";
+    }
+    private String getUserInput(){
         String[] questions =  {
+            "",
             "Instrument?",
             "Quantity?",
             "Price?",
             "Market?",
             "Buy/Sell?"
         };
-        Scanner consoleInput = new Scanner(System.in);
-        String finalString = "";
-
-        finalString = finalString + id;
-        for(int i = 0; i < 5; i++){
-            finalString = finalString + ",";
+        String[] answers = new String[6];
+        answers[0] = Integer.toString(id);
+        for(int i = 1; i < 6; i++) {
             log(questions[i]);
-            consoleInput.hasNextLine();
-            String part = consoleInput.nextLine();
-            finalString = finalString + part;
+            answers[i] = consoleInput.nextLine();
         }
-        consoleInput.close();
-        log("FINAL STRING : " + finalString);
-        return finalString;
+        FixMessage fixMessage = new FixMessage(
+                answers[0],
+                answers[1],
+                Integer.parseInt(answers[2]),
+                Double.parseDouble(answers[3]),
+                answers[4],
+                answers[5]
+        );
+        return fixMessage.toString();
     }
 
     private void shutdown() {
         System.exit(0);
     }
 
-    protected void log(String logMessage){
+    protected void log(Object logMessage){
         System.out.println(logMessage);
     }
 
     private void printBuyOptions(){
+        log("----------------------");
+        log("");
+        log("Instruments for sale :");
         log("apple");
         log("banana");
         log("grape");

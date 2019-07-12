@@ -24,11 +24,13 @@ public class RequestHandler implements Runnable {
         System.out.println("Handling a buy request");
         String result;
         synchronized (stockRoom) {
-            if (fix.attachedMessage == "buy")
+
+            if (fix.attachedMessage == "buy") {
+                log("buy message recieved");
                 result = buyInstrument();
-            else if (fix.attachedMessage == "sell")
+            }else if (fix.attachedMessage == "sell") {
                 result = sellInstrument();
-            else
+            }else
                 result = createReply(REJECTED);
         }
         sendMessage(result);
@@ -71,5 +73,8 @@ public class RequestHandler implements Runnable {
             System.out.println("Request Handler Error" + e.getMessage());
         }
         buffer.flip();
+    }
+    private void log(Object logMessage){
+        System.out.println(logMessage);
     }
 }

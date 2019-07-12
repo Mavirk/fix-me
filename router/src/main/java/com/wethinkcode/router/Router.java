@@ -44,11 +44,12 @@ public class Router {
     }
 
     protected void run() throws IOException {
-        log("run method");
+//        log("run method");
         while (running) {
             try {
-                System.out.println("Number of selected channels : " + selector.select(3000));
-                System.out.println("Number of total channels : " + selector.keys().size());
+                log("Waiting for channel >>");
+                System.out.println("Selected channels : " + selector.select());
+                System.out.println("Total channels : " + selector.keys().size());
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();
                 Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
@@ -66,9 +67,11 @@ public class Router {
                         shutdown(-1);
                     }
                 }
+                log("<< END");
+                log("");
             } catch (Exception e) {
                 
-                e.printStackTrace();
+//                e.printStackTrace();
                 // running = false;
                 shutdown(-1);
             }
@@ -79,7 +82,7 @@ public class Router {
         return uniqueId = uniqueId + 1;
     }
 
-    private void log(String logMessage) {
+    private void log(Object logMessage) {
         System.out.println(logMessage);
     }
 
@@ -94,7 +97,7 @@ public class Router {
 
         clientMap.put(id, key);
         writeBuffer(client, id);
-        log("client registered");
+        log("Client registered with ID: " + id);
     }
 
     private void setupServers(String serverAddress, int marketPort, int brokerPort) throws IOException {
@@ -107,7 +110,8 @@ public class Router {
         brokerChannel.configureBlocking(false);
         marketKey = marketChannel.register(selector, SelectionKey.OP_ACCEPT, "5000");
         brokerKey = brokerChannel.register(selector, SelectionKey.OP_ACCEPT, "5001");
-        log("severs setup");
+        log("Port setup complete...");
+        log("");
     }
 
     private void routeMessage(SelectionKey key) throws IOException {

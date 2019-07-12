@@ -1,5 +1,7 @@
 package com.wethinkcode.router;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -12,6 +14,7 @@ public class MessageHandler implements Runnable{
     private SelectionKey key;
 
     MessageHandler(Map <String ,SelectionKey> clientMap, SelectionKey key){
+        log("New handler created.");
         this.clientMap = clientMap;
         this.key = key;
     }
@@ -40,6 +43,7 @@ public class MessageHandler implements Runnable{
         } catch (IOException e) {
             // TODO Auto-generated catch block
             log(e.getMessage());
+            Runtime.getRuntime().halt(-1);
         }        
     }
 
@@ -61,7 +65,14 @@ public class MessageHandler implements Runnable{
     }
 
     private void log(Object logMessage){
-        System.out.println("MessageHandler :" + logMessage);
+        PrintWriter writer = null;
+        try {
+            writer = new PrintWriter("handlerLog.txt");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        writer.print(logMessage);
+        writer.close();
     }
 
     private void sendError(SelectionKey key, int errorCode){
