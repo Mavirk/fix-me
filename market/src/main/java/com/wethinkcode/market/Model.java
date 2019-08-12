@@ -6,9 +6,9 @@ import java.util.HashMap;
 public class Model{
     public Map <String ,Instrument> stockMap = new HashMap<>();
     private String[] stocklist = {  
-        "apple,100,5",
-        "banna,150,7",
-        "pear,50,10",
+        "apple,100,2",
+        "banna,150,2",
+//        "pear,50,2",
         "grape,400,2"
     };
 

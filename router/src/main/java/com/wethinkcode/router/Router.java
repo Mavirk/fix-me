@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Router {
     private Map<String, SelectionKey> clientMap = new HashMap<>();
+    private static Map<SelectionKey,Integer> processing = new HashMap<>();
     // private Map <String,SelectionKey> brokerMap = new HashMap<>();
     // private Map <String,SelectionKey> marketMap = new HashMap<>();
     private ExecutorService messageHandlerPool = Executors.newFixedThreadPool(1);
@@ -35,15 +36,15 @@ public class Router {
 
     // private ByteBuffer writeBuffer = ByteBuffer.allocate(8192);
 
-    private long uniqueId = 0l;
+    private long uniqueId = 0L;
     private boolean running = true;
 
-    public Router(String serverAddress, int marketPort, int brokerPort) throws IOException {
+    Router(String serverAddress, int marketPort, int brokerPort) throws IOException {
         setupServers(serverAddress, marketPort, brokerPort); // market is port 5000... broker is port 5001
         running = true;
     }
 
-    protected void run() throws IOException {
+    void run() throws IOException {
 //        log("run method");
         while (running) {
             try {
@@ -56,10 +57,14 @@ public class Router {
                 while (keyIterator.hasNext()) {
                     SelectionKey currKey = keyIterator.next();
                     keyIterator.remove();
+                    if(currKey.attachment().equals("2"))
+                        log("market");
+                    else if(currKey.attachment().equals("1"))
+                        log("broker");
                     if (currKey.isValid()) {
                         if (currKey.isAcceptable()) {
                             registerClient(currKey);
-                        } else if (currKey.isReadable()) {
+                        } else if (currKey.isReadable() && !processing.containsKey(currKey)) {
                             routeMessage(currKey);
                         }
                     } else {
@@ -70,8 +75,7 @@ public class Router {
                 log("<< END");
                 log("");
             } catch (Exception e) {
-                
-//                e.printStackTrace();
+                e.printStackTrace();
                 // running = false;
                 shutdown(-1);
             }
@@ -116,11 +120,12 @@ public class Router {
 
     private void routeMessage(SelectionKey key) throws IOException {
         log("routeMessage()");
+        processing.put(key, 0);
         Runnable worker = new MessageHandler(clientMap, key);
         messageHandlerPool.execute(worker);
     }
 
-    protected void writeBuffer(SocketChannel client, String message) throws IOException {
+    private void writeBuffer(SocketChannel client, String message) throws IOException {
         message = "{" + message + "}";
         ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
         client.write(buffer);
@@ -165,6 +170,9 @@ public class Router {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    static void removeFromProcessing(SelectionKey key){
+        processing.remove(key);
     }
 }
     // private void routeMessage(SelectionKey key) throws IOException{

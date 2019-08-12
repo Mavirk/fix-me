@@ -4,7 +4,10 @@ package com.wethinkcode.broker;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 
 public class Broker {
@@ -13,20 +16,40 @@ public class Broker {
     private SocketChannel clientChannel;
     private int id;
     private Scanner consoleInput = new Scanner(System.in);
+    private Map<String, String []> brokerMap = new HashMap<>();
 
-    public Broker(String serverName, int port) throws Exception{
+    private String[] instruments = {
+            "apple",
+            "banana",
+            "grape"
+    };
+
+    private String[] marketIDs = {
+            "2"
+    };
+
+    public Broker(String serverName, int port) throws IOException{
         running = true;
         id = Integer.parseInt(connectServer(serverName, port));
     }
 
-    protected void run(){
-        String message ;
+    protected void run() throws IOException{
+        String[] response;
+        String message;
         while (running){
             printBuyOptions();
             message = getUserInput();
 //            message = testInput(); // THIS LINE IS FOR TESTING
-            sendMessage(message);
-
+            if(!message.equals("Error")) {
+                response = sendMessage(message).split(",");
+//                log(" Test Response: " + String.join(",", response));
+                if(response[response.length - 1].equals("Rejected")) {
+                    log("Response: " + response[response.length - 1]);
+                    log(response[response.length - 2]);
+                }else if(response[response.length - 1].equals("Executed")){
+                    log("Response: " + response[response.length - 1]);
+                }
+            }
         }
         disconnectServer();
     }
@@ -51,18 +74,17 @@ public class Broker {
         }
     }
 
-    private String sendMessage(String message){
+    private String sendMessage(String message) throws IOException{
         log("----------------------");
-        log("Request : " + message);
+//        log("Request : " + message);
         String response = null;
-        try {
+//        try {
             message = "{" + message + "}";
             writeBuffer(message);
-//            log("Request Sent.");
             response = readBuffer();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
         return response;
     }
 
@@ -75,7 +97,6 @@ public class Broker {
         String cleanedMessage = temp.substring(1, temp.length()-1);
         response = cleanedMessage;
         buffer.clear();
-        log("Reponse : " + response);
         return response;
     }
 
@@ -105,15 +126,23 @@ public class Broker {
             log(questions[i]);
             answers[i] = consoleInput.nextLine();
         }
-        FixMessage fixMessage = new FixMessage(
-                answers[0],
-                answers[1],
-                Integer.parseInt(answers[2]),
-                Double.parseDouble(answers[3]),
-                answers[4],
-                answers[5]
-        );
-        return fixMessage.toString();
+        InputChecker inputChecker = new InputChecker(instruments, marketIDs);
+
+        String checkerResponse = inputChecker.checkInput(answers);
+        if(checkerResponse.equals("success")){
+            FixMessage fixMessage = new FixMessage(
+                    answers[0],
+                    answers[1],
+                    Integer.parseInt(answers[2]),
+                    Double.parseDouble(answers[3]),
+                    answers[4],
+                    answers[5]
+            );
+            return fixMessage.toString();
+        }else{
+            log(checkerResponse);
+        }
+        return "Error";
     }
 
     private void shutdown() {

@@ -5,8 +5,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class RequestHandler implements Runnable {
-    private final String ACCEPTED = "accepted";
-    private final String REJECTED = "rejected";
+    private final String ACCEPTED = "Executed";
+    private final String REJECTED = "Rejected";
 
     private Model stockRoom;
     private FixMessage fix;
@@ -21,14 +21,14 @@ public class RequestHandler implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("Handling a buy request");
         String result;
+        log("Attached message " + fix.attachedMessage);
         synchronized (stockRoom) {
 
-            if (fix.attachedMessage == "buy") {
+            if (fix.attachedMessage.equals("buy")) {
                 log("buy message recieved");
                 result = buyInstrument();
-            }else if (fix.attachedMessage == "sell") {
+            }else if (fix.attachedMessage.equals("sell")) {
                 result = sellInstrument();
             }else
                 result = createReply(REJECTED);
@@ -40,22 +40,35 @@ public class RequestHandler implements Runnable {
 
     private String buyInstrument() {
         instrument = stockRoom.getInstrument(fix.instrument);
-        if (instrument != null && instrument.getPrice() < fix.price && instrument.getStock() > fix.quantity) {
+
+        if (instrument != null && instrument.getPrice() <= fix.price && instrument.getStock() >= fix.quantity) {
             instrument.removeStock(fix.quantity);
             Instrument newInstrument = instrument;
             stockRoom.stockMap.replace(fix.instrument, instrument, newInstrument);
             return createReply(ACCEPTED);
+        }
+        if(instrument == null){
+            log("instrument is null");
+        }else if(instrument.getPrice() > fix.price ){
+            log("trying to buy for less than asking price");
+        }else if(instrument.getStock() < fix.quantity){
+            log("not enough stock to handle request");
         }
         return createReply(REJECTED);
     }
 
     private String sellInstrument() {
         instrument = stockRoom.getInstrument(fix.instrument);
-        if (instrument != null && instrument.getPrice() > fix.price) {
+        if (instrument != null && instrument.getPrice() >= fix.price) {
             instrument.addStock(fix.quantity);
             Instrument newInstrument = instrument;
             stockRoom.stockMap.replace(fix.instrument, instrument, newInstrument);
             return createReply(ACCEPTED);
+        }
+        if(instrument == null){
+            log("instrument is null");
+        }else if(instrument.getPrice() < fix.price ) {
+            log("trying to sell for more than market will buy for");
         }
         return createReply(REJECTED);
     }

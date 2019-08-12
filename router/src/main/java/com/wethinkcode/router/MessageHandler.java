@@ -12,11 +12,17 @@ public class MessageHandler implements Runnable{
     
     private Map <String ,SelectionKey> clientMap;
     private SelectionKey key;
+    private PrintWriter writer = null;
 
     MessageHandler(Map <String ,SelectionKey> clientMap, SelectionKey key){
-        log("New handler created.");
         this.clientMap = clientMap;
         this.key = key;
+        try {
+            writer = new PrintWriter("handlerlogs/handlerLog.txt");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        log("New handler created.");
     }
 
     @Override
@@ -24,6 +30,7 @@ public class MessageHandler implements Runnable{
         String brokerMessage;
         try {
             brokerMessage = readBuffer((SocketChannel) key.channel());
+            System.out.println("This is from the message handler" + brokerMessage);
             log("Client "  + key.attachment()  + " Message : "+ brokerMessage);
             if (brokerMessage.charAt(0) == '{' && brokerMessage.endsWith("}")){
                 log("this is a complete message");
@@ -32,7 +39,8 @@ public class MessageHandler implements Runnable{
                 if(clientMap.containsKey(splitMessage[4])){
                     SelectionKey destination = clientMap.get(splitMessage[4]);
                     writeBuffer((SocketChannel) destination.channel(), cleanedMessage);
-                }else {
+                }
+                else {
                     log("Invalid destination");
                     sendError(key, 100);
                 }
@@ -43,8 +51,11 @@ public class MessageHandler implements Runnable{
         } catch (IOException e) {
             // TODO Auto-generated catch block
             log(e.getMessage());
+            Router.removeFromProcessing(key);
             Runtime.getRuntime().halt(-1);
-        }        
+        }
+        Router.removeFromProcessing(key);
+//        writer.close();
     }
 
     private String readBuffer(SocketChannel client)throws IOException{
@@ -65,14 +76,7 @@ public class MessageHandler implements Runnable{
     }
 
     private void log(Object logMessage){
-        PrintWriter writer = null;
-        try {
-            writer = new PrintWriter("handlerLog.txt");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
         writer.print(logMessage);
-        writer.close();
     }
 
     private void sendError(SelectionKey key, int errorCode){
@@ -81,7 +85,7 @@ public class MessageHandler implements Runnable{
                 case 100:
                     writeBuffer((SocketChannel) key.channel(), "Invalid Market Request -- market does not exist.");
                     break;
-                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
